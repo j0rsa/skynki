@@ -6,7 +6,7 @@ pub enum Error {
     Reqwest {
         #[source]
         e: reqwest::Error,
-        path: &'static str,
+        path: String, //&'static str works only with handwritten urls, but not parametrized
     },
 
     #[error("IO error")]
@@ -17,6 +17,16 @@ pub enum Error {
 
     #[error("Http parsing error: {message}")]
     HttpParsingError {
+        message: &'static str
+    },
+
+    #[error("There was a server error: {message}")]
+    ServerError {
+        message: &'static str
+    },
+
+    #[error("There was a user error: {message}")]
+    UserError {
         message: &'static str
     },
 
