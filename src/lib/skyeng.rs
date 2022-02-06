@@ -18,8 +18,10 @@ pub enum Error {
         source: reqwest::Error
     },
 
-    #[error("Http parsing error")]
-    HttpParsingError {},
+    #[error("Http parsing error: {message}")]
+    HttpParsingError {
+        message: &'static str
+    },
 
     #[error(transparent)]
     UnexpectedError(#[from] Box<dyn std::error::Error>),
@@ -34,15 +36,21 @@ async fn get_csrf() -> Result<String> {
 
     let response = res.text().await?;
     let doc = Html::parse_document(&response);
-    let selector = scraper::Selector::parse("input[name=csrfToken]").map_err(|_| HttpParsingError {})?;
+    let selector = scraper::Selector::parse("input[name=csrfToken]")
+        .map_err(|_| HttpParsingError { message: "Unable to parse the page with csrf token" })?;
     let csrf = doc
         .select(&selector)
         .next()
-        .unwrap()
-        .value()
-        .attr("value")
-        .unwrap();
-    Ok(csrf.to_string())
+        .ok_or("Unable to find csrf element on the page")
+        .and_then(|v|
+            v
+                .value()
+                .attr("value")
+                .ok_or("Unable to find value of csrf token element")
+        );
+
+    csrf.map(|v| v.to_string())
+        .map_err(|e| HttpParsingError { message: e })
 }
 
 #[cfg(test)]
@@ -52,6 +60,7 @@ mod test {
     #[tokio::test]
     pub async fn test_csrf() {
         let result = get_csrf().await;
+        println!("result: {:#?}", result);
         assert!(result.is_ok());
         let csrf = result.unwrap();
         println!("CSRF: {}", csrf);
