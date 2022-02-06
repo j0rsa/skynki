@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::time::UNIX_EPOCH;
+use log::info;
 use reqwest::Client;
 use scraper::Html;
 use crate::lib::errors::Error::ServerError;
@@ -32,7 +33,7 @@ pub struct Meta {
     pub page_size: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WordSetData {
     pub id: u32,
@@ -106,7 +107,7 @@ async fn login(user: &String, password: &String) -> Result<Token> {
         params.insert("username", user);
         params.insert("password", password);
         params.insert("csrfToken", &csrf);
-
+    info!("Logging in user {}", user);
     let rs = client.post(&path)
         .form(&params)
         .send().await
@@ -128,6 +129,7 @@ async fn get_word_sets(token: &Token, student_id: u32) -> Result<Vec<WordSetData
     let mut current_page = 1;
     let mut word_sets = Vec::new();
     loop {
+        info!("Calling {} page {}", path, current_page);
         let mut params = HashMap::new();
         params.insert("page", &current_page);
         params.insert("pageSize", &page_size);
@@ -147,15 +149,17 @@ async fn get_word_sets(token: &Token, student_id: u32) -> Result<Vec<WordSetData
 }
 
 pub async fn get_words(token: &Token, student_id: u32) -> Result<Vec<WordData>> {
-    let words_sets = get_word_sets(token, student_id).await?;
+    let word_sets = get_word_sets(token, student_id).await?;
     let mut words = Vec::new();
-    for word_set in words_sets {
+    let client = reqwest::Client::new();
+    let page_size = "100".to_string();
+    let accepted_language = "ru".to_string();
+    let curr_time = curr_millis().to_string();
+    for word_set in word_sets {
         let path = format!("https://api.words.skyeng.ru/api/v1/wordsets/{}/words.json", word_set.id);
-        let client = reqwest::Client::new();
-        let page_size = "100".to_string();
-        let accepted_language = "ru".to_string();
         let mut current_page = 1;
         loop {
+            info!("Calling {} page {}", path, current_page);
             let res = client.get(&path)
                 .bearer_auth(&token.value)
                 .query(&[
@@ -163,7 +167,7 @@ pub async fn get_words(token: &Token, student_id: u32) -> Result<Vec<WordData>> 
                     ("pageSize", &page_size),
                     ("studentId", &student_id.to_string()),
                     ("acceptLanguage", &accepted_language),
-                    ("noCache", &curr_millis().to_string()),
+                    ("noCache", &curr_time),
                 ])
                 .send().await.map_err(|e| Error::Reqwest { e, path: path.clone() })?;
             let response = res.json::<Words>().await.map_err(|e| Error::Reqwest { e, path: path.clone() })?;
@@ -181,6 +185,7 @@ pub async fn get_words(token: &Token, student_id: u32) -> Result<Vec<WordData>> 
 mod test {
     use std::env;
     use super::*;
+    use test_log::test;
 
     #[tokio::test]
     pub async fn test_csrf() {
@@ -208,7 +213,7 @@ mod test {
         assert!(result.unwrap().value.len() > 0);
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     pub async fn test_get_word_sets() {
         let auth_result = login(
             &"red.avtovo@gmail.com".to_string(),
@@ -228,7 +233,8 @@ mod test {
         ).await;
         let token = auth_result.unwrap();
         let result = get_words(&token,6605911).await;
-        println!("result: {:#?}", result);
+        // println!("result: {:#?}", result);
         assert!(result.is_ok());
+        println!("result: {}", result.unwrap().len());
     }
 }
