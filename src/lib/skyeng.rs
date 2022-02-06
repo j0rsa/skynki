@@ -41,7 +41,7 @@ pub struct WordSetData {
     pub subtitle: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WordData {
     pub meaning_id: u32,
@@ -181,6 +181,24 @@ pub async fn get_words(token: &Token, student_id: u32) -> Result<Vec<WordData>> 
     Ok(words)
 }
 
+trait NewWords {
+    fn created_after(self, date_time: String) -> Vec<WordData>;
+    fn last_created(&self) -> Option<String>;
+}
+
+impl NewWords for Vec<WordData> {
+    fn created_after(self, date_time: String) -> Vec<WordData> {
+        self.iter().filter(|w| w.created_at > date_time).cloned().collect()
+    }
+
+    fn last_created(&self) -> Option<String> {
+        self.iter()
+            .map(|w| &w.created_at)
+            .max()
+            .map(|w| w.to_string())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::env;
@@ -199,6 +217,14 @@ mod test {
         assert!(csrf.len() > 0)
     }
 
+    async fn token() -> Token {
+        let result = login(
+            &"red.avtovo@gmail.com".to_string(),
+            &env::var("PASS").expect("User password expected")
+        ).await;
+        result.unwrap()
+    }
+
     #[tokio::test]
     // Token {
     //   value: "some token",
@@ -215,11 +241,7 @@ mod test {
 
     #[test(tokio::test)]
     pub async fn test_get_word_sets() {
-        let auth_result = login(
-            &"red.avtovo@gmail.com".to_string(),
-            &env::var("PASS").expect("User password expected")
-        ).await;
-        let token = auth_result.unwrap();
+        let token = token().await;
         let result = get_word_sets(&token,6605911).await;
         println!("result: {:#?}", result);
         assert!(result.is_ok());
@@ -227,14 +249,31 @@ mod test {
 
     #[tokio::test]
     pub async fn test_get_words() {
-        let auth_result = login(
-            &"red.avtovo@gmail.com".to_string(),
-            &env::var("PASS").expect("User password expected")
-        ).await;
-        let token = auth_result.unwrap();
+        let token = token().await;
         let result = get_words(&token,6605911).await;
-        // println!("result: {:#?}", result);
         assert!(result.is_ok());
         println!("result: {}", result.unwrap().len());
+    }
+
+    #[tokio::test]
+    pub async fn test_get_new_words() {
+        let token = token().await;
+        let result = get_words(&token, 6605911).await.map(
+            |words| words.created_after(
+                "2022-01-01T00:00:00.000Z".to_string()
+            )
+        );
+        assert!(result.is_ok());
+        println!("result: {}", result.unwrap().len());
+    }
+
+    #[tokio::test]
+    pub async fn test_get_last_created_words() {
+        let token = token().await;
+        let result = get_words(&token, 6605911).await
+            .unwrap()
+            .last_created();
+        assert!(result.is_some());
+        println!("result: {}", result.unwrap());
     }
 }
