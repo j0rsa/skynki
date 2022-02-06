@@ -34,5 +34,7 @@ scraper = "0.12.0"
 # errors handling
 thiserror = "1.0"
 
+async-trait = "0.1.52"
+
 [dev-dependencies]
 test-log = "0.2.8"

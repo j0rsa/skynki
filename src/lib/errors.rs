@@ -30,6 +30,12 @@ pub enum Error {
         message: &'static str
     },
 
+    #[error("Deserialization error: {e}\n{message}")]
+    DeserializationError {
+        e: serde_json::Error,
+        message: String
+    },
+
     #[error(transparent)]
     UnexpectedError(#[from] Box<dyn std::error::Error>),
 }

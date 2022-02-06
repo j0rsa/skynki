@@ -5,6 +5,7 @@ use reqwest::Client;
 use scraper::Html;
 use crate::lib::errors::Error::ServerError;
 use serde::Deserialize;
+use async_trait::async_trait;
 
 use super::errors::{
     Error,
@@ -181,11 +182,52 @@ pub async fn get_words(token: &Token, student_id: u32) -> Result<Vec<WordData>> 
     Ok(words)
 }
 
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct Meaning {
+    pub alternatives: Option<Vec<MeaningAlternative>>,
+    pub definition: MeaningDefinition,
+    pub examples: Vec<MeaningDefinition>,
+    pub id: u64,
+    pub images: Vec<MeaningImage>,
+    pub sound_url: String,
+    pub text: String,
+    pub transcription: String,
+    pub translation: Translation
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct MeaningAlternative {
+    pub text: String,
+    pub translation: Option<Translation>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct Translation {
+    pub text: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct MeaningDefinition {
+    pub text: String,
+    pub sound_url: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct MeaningImage {
+    pub url: String,
+}
+
+#[async_trait]
 trait NewWords {
     fn created_after(self, date_time: String) -> Vec<WordData>;
     fn last_created(&self) -> Option<String>;
+    async fn get_meanings(&self, token: &Token) -> Result<Vec<Meaning>>;
 }
 
+#[async_trait]
 impl NewWords for Vec<WordData> {
     fn created_after(self, date_time: String) -> Vec<WordData> {
         self.iter().filter(|w| w.created_at > date_time).cloned().collect()
@@ -196,6 +238,22 @@ impl NewWords for Vec<WordData> {
             .map(|w| &w.created_at)
             .max()
             .map(|w| w.to_string())
+    }
+
+    async fn get_meanings(&self, token: &Token) -> Result<Vec<Meaning>> {
+        let path = "https://dictionary.skyeng.ru/api/for-services/v2/meanings".to_string();
+        let client = reqwest::Client::new();
+        let ids = self.into_iter()
+            .map(|w| w.meaning_id.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+        let res = client.get(&path)
+            .bearer_auth(&token.value)
+            .query(&[("ids", &ids)])
+            .send().await.map_err(|e| Error::Reqwest { e, path: path.clone() })?;
+        let body = String::from_utf8(res.bytes().await.map_err(|e| Error::Reqwest { e, path: path.clone() })?.to_vec()).unwrap();
+        serde_json::from_str(&body)
+            .map_err(|e| Error::DeserializationError { e, message: body.clone() })
     }
 }
 
@@ -275,5 +333,20 @@ mod test {
             .last_created();
         assert!(result.is_some());
         println!("result: {}", result.unwrap());
+    }
+
+    #[tokio::test]
+    pub async fn test_get_meanings() {
+        let token = token().await;
+        let result = get_words(&token, 6605911).await
+            .unwrap()
+            .iter().rev()
+            .take(2)
+            .map(|v| v.clone())
+            .collect::<Vec<WordData>>()
+            .get_meanings(&token).await;
+        println!("result: {:#?}", result);
+        assert!(result.is_ok());
+        assert!(result.unwrap().len() >= 2);
     }
 }
