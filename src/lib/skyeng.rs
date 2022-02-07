@@ -55,6 +55,9 @@ pub struct Words {
     pub data: Vec<WordData>,
 }
 
+pub fn get_client() -> Client {
+    reqwest::Client::builder().cookie_store(true).build().unwrap()
+}
 
 /// Calls login endpoint and gets csrf token + session cookies
 async fn get_csrf(client: &Client) -> Result<String> {
