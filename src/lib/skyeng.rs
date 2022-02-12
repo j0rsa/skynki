@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::time::UNIX_EPOCH;
 use log::info;
 use reqwest::Client;
 use scraper::Html;
 use crate::lib::errors::Error::{ServerError, UserError};
 use serde::Deserialize;
+use std::sync::Arc;
 
 use super::errors::{
     Error,
@@ -73,12 +76,22 @@ pub struct Words {
     pub data: Vec<WordData>,
 }
 
+pub trait Callback: Fn(&Token) -> () {}
+impl Callback for fn(&Token) {}
+
+impl Debug for dyn Callback<Output = ()> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "Callback")
+    }
+}
+
 #[derive(Debug, Clone)]
-struct Skyeng {
+pub struct Skyeng {
     client: Client,
     token: Option<Token>,
     user: String,
     password: String,
+    token_update_callback: Option<Arc<dyn Callback>>
 }
 
 impl Skyeng {
@@ -140,6 +153,7 @@ impl Skyeng {
         }
         let token = self.get_jwt().await?;
         self.token = Some(token);
+        self.token_update_callback.iter().for_each(|f| f(self.token.as_ref().unwrap()));
         Ok(self)
     }
 
@@ -232,6 +246,7 @@ impl Skyeng {
             token: None,
             user,
             password,
+            token_update_callback: None,
         }
     }
 
@@ -241,10 +256,11 @@ impl Skyeng {
             token,
             user,
             password,
+            token_update_callback: None,
         }
     }
 
-    async fn get_meanings(&mut self, words: &Vec<WordData>) -> Result<Vec<Meaning>> {
+    pub async fn get_meanings(&mut self, words: &Vec<WordData>) -> Result<Vec<Meaning>> {
         let path = "https://dictionary.skyeng.ru/api/for-services/v2/meanings".to_string();
         let ids = words.into_iter()
             .map(|w| w.meaning_id.to_string())
@@ -259,12 +275,16 @@ impl Skyeng {
         serde_json::from_str(&body)
             .map_err(|e| Error::DeserializationError { e, message: body.clone() })
     }
+
+    pub fn on_token_update(&mut self, f: fn(&Token)) {
+        self.token_update_callback = Some(Arc::new(f));
+    }
 }
 
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct Meaning {
+pub struct Meaning {
     pub alternatives: Option<Vec<MeaningAlternative>>,
     pub definition: MeaningDefinition,
     pub examples: Vec<MeaningDefinition>,
@@ -278,36 +298,36 @@ struct Meaning {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct MeaningAlternative {
+pub struct MeaningAlternative {
     pub text: String,
     pub translation: Option<Translation>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct Translation {
+pub struct Translation {
     pub text: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct MeaningDefinition {
+pub struct MeaningDefinition {
     pub text: String,
     pub sound_url: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct MeaningImage {
+pub struct MeaningImage {
     pub url: String,
 }
 
-trait NewWords {
-    fn created_after(self, date_time: String) -> Vec<WordData>;
+pub trait NewWords {
+    fn created_after(self, date_time: &String) -> Vec<WordData>;
     fn last_created(&self) -> Option<String>;
 }
 
 impl NewWords for Vec<WordData> {
-    fn created_after(self, date_time: String) -> Vec<WordData> {
-        self.iter().filter(|w| w.created_at > date_time).cloned().collect()
+    fn created_after(self, date_time: &String) -> Vec<WordData> {
+        self.iter().filter(|w| w.created_at > date_time.clone()).cloned().collect()
     }
 
     fn last_created(&self) -> Option<String> {
@@ -383,7 +403,7 @@ mod test {
         let mut skyeng = skyeng().await;
         let result = skyeng.get_words(6605911).await.map(
             |words| words.created_after(
-                "2022-01-01T00:00:00.000Z".to_string()
+                &"2022-01-01T00:00:00.000Z".to_string()
             )
         );
         assert!(result.is_ok());
