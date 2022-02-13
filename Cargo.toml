@@ -18,6 +18,7 @@ postgres-types = { version = "0.2.2", features = ["derive", "with-uuid-0_8"] }
 diesel = { version = "1.4.8", features = ["postgres", "r2d2", "uuidv07", "chrono"] }
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 r2d2 = { version = "0.8.9" }
+chrono = "0.4.19"
 
 # Json
 serde = { version = "1.0.132", features = ["derive"] }

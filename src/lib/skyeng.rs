@@ -23,8 +23,27 @@ pub(crate) fn curr_millis() -> u128 {
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    value: String,
-    expires: u128,
+    pub value: String,
+    pub expires: u128,
+}
+
+impl AsRef<Token> for Token {
+    fn as_ref(&self) -> &Token {
+        self
+    }
+}
+
+impl Token {
+    pub fn new(value: String, expires: u128) -> Self {
+        Self {
+            value,
+            expires,
+        }
+    }
+
+    pub fn is_expired(&self) -> bool {
+        curr_millis() > self.expires
+    }
 }
 
 trait Expirable {
@@ -34,7 +53,7 @@ trait Expirable {
 impl Expirable for Option<Token> {
     fn is_expired(&self) -> bool {
         match self {
-            Some(token) => token.expires < curr_millis(),
+            Some(token) => token.is_expired(),
             None => true,
         }
     }
@@ -76,10 +95,12 @@ pub struct Words {
     pub data: Vec<WordData>,
 }
 
-pub trait Callback: Fn(&Token) -> () {}
-impl Callback for fn(&Token) {}
+#[derive(Clone)]
+pub struct Callback {
+    func: Arc<dyn Fn(&Token)>,
+}
 
-impl Debug for dyn Callback<Output = ()> {
+impl Debug for Callback{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Callback")
     }
@@ -91,7 +112,7 @@ pub struct Skyeng {
     token: Option<Token>,
     user: String,
     password: String,
-    token_update_callback: Option<Arc<dyn Callback>>
+    token_update_callback: Option<Callback>
 }
 
 impl Skyeng {
@@ -139,6 +160,7 @@ impl Skyeng {
         params.insert("username", &self.user);
         params.insert("password", &self.password);
         params.insert("csrfToken", &csrf);
+
         info!("Logging in user {}", &self.user);
         let rs = self.client.post(&path)
             .form(&params)
@@ -153,7 +175,7 @@ impl Skyeng {
         }
         let token = self.get_jwt().await?;
         self.token = Some(token);
-        self.token_update_callback.iter().for_each(|f| f(self.token.as_ref().unwrap()));
+        self.token_update_callback.iter().for_each(|f| (f.func)(self.token.as_ref().unwrap()));
         Ok(self)
     }
 
@@ -276,8 +298,10 @@ impl Skyeng {
             .map_err(|e| Error::DeserializationError { e, message: body.clone() })
     }
 
-    pub fn on_token_update(&mut self, f: fn(&Token)) {
-        self.token_update_callback = Some(Arc::new(f));
+    pub fn on_token_update(&mut self, f: impl Fn(&Token) + 'static) {
+        self.token_update_callback = Some(Callback{
+            func: Arc::new(f),
+        });
     }
 }
 
@@ -321,13 +345,14 @@ pub struct MeaningImage {
 }
 
 pub trait NewWords {
-    fn created_after(self, date_time: &String) -> Vec<WordData>;
+    fn created_after(self, date_time: &Option<String>) -> Vec<WordData>;
     fn last_created(&self) -> Option<String>;
 }
 
 impl NewWords for Vec<WordData> {
-    fn created_after(self, date_time: &String) -> Vec<WordData> {
-        self.iter().filter(|w| w.created_at > date_time.clone()).cloned().collect()
+    fn created_after(self, date_time: &Option<String>) -> Vec<WordData> {
+        let date_time_string = date_time.clone().unwrap_or("".to_string());
+        self.iter().filter(|w| w.created_at > date_time_string ).cloned().collect()
     }
 
     fn last_created(&self) -> Option<String> {
@@ -382,6 +407,13 @@ mod test {
         assert!(token.value.len() > 0);
     }
 
+    //[
+    //WordSetData {
+    //             id: 62494171,
+    //             title: "Communication",
+    //             subtitle: "Informal communication",
+    //         },
+    //]
     #[test(tokio::test)]
     pub async fn test_get_word_sets() {
         let mut skyeng = skyeng().await;
@@ -390,6 +422,12 @@ mod test {
         assert!(result.is_ok());
     }
 
+    //[
+    // WordData {
+    //         meaning_id: 175493,
+    //         created_at: "2022-02-10T10:40:57+00:00",
+    //     },
+    //]
     #[tokio::test]
     pub async fn test_get_words() {
         let mut skyeng = skyeng().await;
@@ -398,16 +436,24 @@ mod test {
         println!("result: {}", result.unwrap().len());
     }
 
+    //[
+    // WordData {
+    //         meaning_id: 175493,
+    //         created_at: "2022-02-10T10:40:57+00:00",
+    //     },
+    //]
     #[tokio::test]
     pub async fn test_get_new_words() {
         let mut skyeng = skyeng().await;
         let result = skyeng.get_words(6605911).await.map(
             |words| words.created_after(
-                &"2022-01-01T00:00:00.000Z".to_string()
+                &Some("2022-01-01T00:00:00.000Z".to_string())
             )
         );
         assert!(result.is_ok());
-        println!("result: {}", result.unwrap().len());
+        let vec = result.unwrap();
+        println!("result: {:#?}", vec);
+        println!("result: {}", vec.len());
     }
 
     #[tokio::test]

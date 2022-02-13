@@ -36,6 +36,18 @@ pub enum Error {
         message: String
     },
 
+    #[error("Db error: {source}")]
+    DbError {
+        #[from]
+        source: r2d2::Error
+    },
+
+    #[error("Db error: {source}")]
+    DieselError {
+        #[from]
+        source: diesel::result::Error
+    },
+
     #[error(transparent)]
     UnexpectedError(#[from] Box<dyn std::error::Error>),
 }
