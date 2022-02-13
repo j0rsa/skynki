@@ -10,40 +10,41 @@ struct Action {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct Note {
+pub struct Note {
     pub deck_name: String,
     pub model_name: String,
     pub fields: Fields,
     pub options: Options,
     pub tags: Vec<String>,
-    pub audio: Option<Attachment>,
-    pub picture: Option<Attachment>,
+    pub audio: Vec<Attachment>,
+    pub picture: Vec<Attachment>,
 }
 
 #[derive(Serialize, Debug)]
-struct Fields {
+pub struct Fields {
     #[serde(rename = "Text")]
     pub text: String,
 }
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct Options{
-    allow_duplicate: bool, //false
-    duplicate_scope: String, //deck
-    duplicate_scope_options: Option<DuplicateScopeOptions>,
+pub struct Options{
+    pub allow_duplicate: bool, //false
+    pub duplicate_scope: String, //deck
+    pub duplicate_scope_options: Option<DuplicateScopeOptions>,
 
 }
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct DuplicateScopeOptions {
+pub struct DuplicateScopeOptions {
     pub deck_name: String, //"Default"
     pub check_children: bool, //false
     pub check_all_models: bool, //false
 }
 
-struct Attachment {
+#[derive(Serialize, Debug)]
+pub struct Attachment {
     pub url: String,
     pub filename: String,
     pub fields: Vec<String>, //[Extra]

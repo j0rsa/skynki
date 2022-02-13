@@ -466,6 +466,37 @@ mod test {
         println!("result: {}", result.unwrap());
     }
 
+    //[
+    //Meaning {
+    //             alternatives: None,
+    //             definition: MeaningDefinition {
+    //                 text: "To make someone decide not to do something.",
+    //                 sound_url: "https://d2fmfepycn0xw0.cloudfront.net?gender=female&accent=american&text=to+make+someone+decide+not+to+do+something",
+    //             },
+    //             examples: [
+    //                 MeaningDefinition {
+    //                     text: "I told him I wasn\'t interested, but he wasn\'t [deterred].",
+    //                     sound_url: "https://d2fmfepycn0xw0.cloudfront.net?gender=female&accent=american&text=I+told+him+I+wasn%27t+interested+but+he+wasn%27t+deterred.",
+    //                 },
+    //                 MeaningDefinition {
+    //                     text: "The rain didn’t [deter] people from coming to the game.",
+    //                     sound_url: "https://d2fmfepycn0xw0.cloudfront.net?gender=female&accent=american&text=The+rain+didn%E2%80%99t+deter+people+from+coming+to+the+game.",
+    //                 },
+    //             ],
+    //             id: 210809,
+    //             images: [
+    //                 MeaningImage {
+    //                     url: "https://cdn-user77752.skyeng.ru/resized-images/200x150/png/50/5a677c4b4a356e7a4a3fc243deb73676.png",
+    //                 },
+    //             ],
+    //             sound_url: "https://d2fmfepycn0xw0.cloudfront.net?gender=female&accent=american&text=deter",
+    //             text: "deter",
+    //             transcription: "dɪˈtɜː",
+    //             translation: Translation {
+    //                 text: "удерживать",
+    //             },
+    //         },
+    //]
     #[tokio::test]
     pub async fn test_get_meanings() {
         let mut skyeng = skyeng().await;
