@@ -1,14 +1,46 @@
 version: "3.7"
 
 services:
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
+#  redis:
+#    image: redis:alpine
+#    ports:
+#      - "6379:6379"
+#
+#  redis-ui:
+#    image: marian/rebrow
+#    ports:
+#      - "5001:5001"
+#    links:
+#      - redis
 
-  redis-ui:
-    image: marian/rebrow
+  postgres:
+    image: postgres:14-alpine
     ports:
-      - "5001:5001"
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  postgres-ui:
+    image: dpage/pgadmin4:6.5
     links:
-      - redis
+      - postgres
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: postgres@acme.com #the username to login to pgadmin
+      PGADMIN_DEFAULT_PASSWORD: pgadmin # the password to login to pgadmin
+#      PGADMIN_CONFIG_SERVER_MODE: 'False' # True for production, False for development
+#      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False' # True for production, False for development
+    volumes:
+      - ./compose/pgadmin/servers.json:/pgadmin4/servers.json # preconfigured servers/connections
+      - ./compose/pgadmin/pgpass:/pgadmin4/pgpass # passwords for the connections in this file
+    entrypoint: >
+      /bin/sh -c "
+        mkdir -p -m 700 /var/lib/pgadmin/storage/postgres_acme.com;
+        chown -R pgadmin:pgadmin /var/lib/pgadmin/storage/postgres_acme.com;
+        cp -prv /pgadmin4/pgpass /var/lib/pgadmin/storage/postgres_acme.com/;
+        chmod 600 /var/lib/pgadmin/storage/postgres_acme.com/pgpass;
+        /entrypoint.sh
+      "
