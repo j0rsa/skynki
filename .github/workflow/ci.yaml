@@ -1,0 +1,86 @@
+name: CI
+
+on: [push]
+
+env:
+  DOCKER_IMAGE: docker.io/j0rsa/skynki
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      BINARY_NAME: skynki
+    strategy:
+      matrix:
+        include:
+          - tag: amd64_latest
+            target: x86_64-unknown-linux-musl
+          - tag: arm64_latest
+            target: arm64-unknown-linux-musl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Set Vars
+        id: vars
+        run: |
+          echo ::set-output name=sha_short::$(git rev-parse --short=6 ${{ github.sha }})
+
+      - name: Docker build
+        run: |
+          docker build \
+          --build-arg BINARY_NAME=${BINARY_NAME} \
+          --build-arg TARGET=${{ matrix.target }} \
+          -t ${DOCKER_IMAGE}:${{ steps.vars.outputs.sha_short }} .
+
+      - name: Docker login
+        if: github.ref == 'refs/heads/main'
+        uses: azure/docker-login@v1
+        with:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Push image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker tag ${DOCKER_IMAGE}:${{ steps.vars.outputs.sha_short }} ${DOCKER_IMAGE}:${{ matrix.tag }}
+          docker push ${DOCKER_IMAGE}:${{ steps.vars.outputs.sha_short }}
+          docker push ${DOCKER_IMAGE}:${{ matrix.tag }}
+
+  publish_latest:
+    name: Publish latest
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    env:
+      DOCKER_FILE: Dockerfile.latest
+      DOCKER_TARGET_PLATFORM: linux/amd64,linux/arm64
+    needs:
+      - build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Docker login
+        uses: azure/docker-login@v1
+        with:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: crazy-max/ghaction-docker-buildx@v1
+        with:
+          version: latest
+
+      - name: Docker buildx build and push
+        run: |
+          docker buildx build \
+          --platform ${DOCKER_TARGET_PLATFORM} \
+          --build-arg IMAGE=${DOCKER_IMAGE} \
+          --tag ${DOCKER_IMAGE}:latest \
+          --file ./${DOCKER_FILE} \
+          --push .
