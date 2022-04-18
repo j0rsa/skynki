@@ -11,15 +11,15 @@ FROM ekidd/rust-musl-builder:stable AS cargo-build
 ARG TARGET
 ARG BINARY_NAME
 
-# as binary name but - -> _. Example: cargo-build -> cargo_build
-ENV DEP_NAME="$(echo $BINARY_NAME | tr '-' '_')"
-
 COPY Cargo.toml Cargo.toml
 
 RUN mkdir src/ && \
     echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs && \
     cargo build --release --target=$TARGET
-RUN rm -f target/$TARGET/release/deps/${DEP_NAME}*
+
+# as binary name but - -> _. Example: cargo-build -> cargo_build
+RUN export DEP_NAME=${BINARY_NAME//-/_} &&\
+    rm -f target/$TARGET/release/deps/${DEP_NAME}*
 
 COPY . .
 RUN cargo build --release --target=$TARGET
