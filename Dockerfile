@@ -10,9 +10,10 @@ FROM ekidd/rust-musl-builder:stable AS cargo-build
 # Declare args in the builder scope to be able to use it
 ARG TARGET
 ARG BINARY_NAME
+ENV BINARY_NAME=$BINARY_NAME
 
 # as binary name but - -> _. Example: cargo-build -> cargo_build
-ENV DEP_NAME=${BINARY_NAME//-/_}
+ENV DEP_NAME="${BINARY_NAME//-/_}"
 
 COPY Cargo.toml Cargo.toml
 
