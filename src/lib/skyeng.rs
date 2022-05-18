@@ -85,7 +85,7 @@ pub struct WordSetData {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WordData {
-    pub meaning_id: u32,
+    pub meaning_id: u64,
     pub created_at: String,
 }
 
@@ -93,6 +93,21 @@ pub struct WordData {
 pub struct Words {
     pub meta: Meta,
     pub data: Vec<WordData>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WordOfSet {
+    pub wordset: WordSetData,
+    pub word: WordData,
+}
+
+impl WordOfSet {
+    pub fn new(wordset: &WordSetData, words: Vec<WordData>) -> Vec<Self> {
+        words.iter().map(|w| Self {
+            wordset: wordset.clone(),
+            word: w.clone(),
+        }).collect()
+    }
 }
 
 #[derive(Clone)]
@@ -168,10 +183,10 @@ impl Skyeng {
             .map_err(|e| Error::Reqwest { e, path })?;
 
         if rs.status().is_server_error() {
-            return Err(Error::ServerError { message: "Bad credentials" });
+            return Err(ServerError { message: "Bad credentials" });
         }
         if rs.status().is_client_error() {
-            return Err(Error::UserError { message: "Bad credentials" });
+            return Err(UserError { message: "Bad credentials" });
         }
         let token = self.get_jwt().await?;
         self.token = Some(token);
@@ -179,7 +194,7 @@ impl Skyeng {
         Ok(self)
     }
 
-    async fn get_word_sets(&mut self, student_id: u32) -> Result<Vec<WordSetData>> {
+    async fn get_word_sets(&mut self, student_id: &u32) -> Result<Vec<WordSetData>> {
         let path = "https://api.words.skyeng.ru/api/for-vimbox/v1/wordsets.json".to_string();
         let page_size = 100;
         let mut current_page = 1;
@@ -205,7 +220,7 @@ impl Skyeng {
         Ok(word_sets)
     }
 
-    pub async fn get_words(&mut self, student_id: u32) -> Result<Vec<WordData>> {
+    pub async fn get_words(&mut self, student_id: &u32) -> Result<Vec<WordOfSet>> {
         let word_sets = self.get_word_sets(student_id).await?;
         let mut words = Vec::new();
         let page_size = "100".to_string();
@@ -228,7 +243,7 @@ impl Skyeng {
                     ])
                     .send().await.map_err(|e| Error::Reqwest { e, path: path.clone() })?;
                 let response = res.json::<Words>().await.map_err(|e| Error::Reqwest { e, path: path.clone() })?;
-                words.extend(response.data);
+                words.extend(WordOfSet::new(&word_set, response.data));
                 if response.meta.current_page == response.meta.last_page {
                     break;
                 }
@@ -255,11 +270,10 @@ impl Skyeng {
             Ok(v) => v.get_token(),
             _ => None
         }
-
     }
 
     fn client() -> Client {
-        reqwest::Client::builder().cookie_store(true).build().unwrap()
+        Client::builder().cookie_store(true).build().unwrap()
     }
 
     pub fn new(user: String, password: String) -> Self {
@@ -288,7 +302,10 @@ impl Skyeng {
             .map(|w| w.meaning_id.to_string())
             .collect::<Vec<String>>()
             .join(",");
-        let token = self.get_fresh_token().await.ok_or_else(|| UserError { message: "Token is not set. Unable to login" })?;
+        let token = self.get_fresh_token()
+            .await
+            .ok_or_else(|| UserError { message: "Token is not set. Unable to login" })?;
+
         let res = self.client.get(&path)
             .bearer_auth(&token.value)
             .query(&[("ids", &ids)])
@@ -345,19 +362,19 @@ pub struct MeaningImage {
 }
 
 pub trait NewWords {
-    fn created_after(self, date_time: &Option<String>) -> Vec<WordData>;
+    fn created_after(self, date_time: &Option<String>) -> Self;
     fn last_created(&self) -> Option<String>;
 }
 
-impl NewWords for Vec<WordData> {
-    fn created_after(self, date_time: &Option<String>) -> Vec<WordData> {
+impl NewWords for Vec<WordOfSet> {
+    fn created_after(self, date_time: &Option<String>) -> Self {
         let date_time_string = date_time.clone().unwrap_or("".to_string());
-        self.iter().filter(|w| w.created_at > date_time_string ).cloned().collect()
+        self.iter().filter(|w| w.word.created_at > date_time_string ).cloned().collect()
     }
 
     fn last_created(&self) -> Option<String> {
         self.iter()
-            .map(|w| &w.created_at)
+            .map(|w| &w.word.created_at)
             .max()
             .map(|w| w.to_string())
     }

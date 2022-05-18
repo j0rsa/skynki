@@ -5,61 +5,123 @@ mod schema;
 extern crate diesel;
 
 use std::env;
+use chrono::Utc;
 use lib::{
     skyeng::*,
     anki::*,
 };
 use crate::lib::db_config::DbConfig;
-use crate::lib::repository::{get_last_update, get_token, save_last_update, save_token};
+use crate::lib::repository::{get_last_update, get_token, save_last_update, save_token, save_word, Word};
 
+#[tokio::main]
 async fn main() {
     env_logger::init();
 
     let pool = DbConfig::get_pool();
     DbConfig::test_connection(pool.clone()).unwrap();
 
-    let user = env::var("SKYENG_USERNAME").unwrap();
-    let token: Option<Token> = get_token(&pool, &user).unwrap();
-    let last_update = get_last_update(&pool).unwrap();
+    let user = env::var("SKYENG_USERNAME")
+        .expect("SKYENG_USERNAME must be set");
+    let token: Option<Token> = get_token(&pool, &user)
+        .expect("Failed to get last token from db");
+    let last_update = get_last_update(&pool)
+        .expect("Failed to get last update from db");
 
     let mut skyeng = Skyeng::new_with_token(
         token,
         user.clone(),
-        env::var("SKYENG_PASSWORD").unwrap(),
+        env::var("SKYENG_PASSWORD")
+            .expect("SKYENG_PASSWORD must be set"),
     );
 
     let callback_pool = pool.clone();
     let login = user.clone();
     skyeng.on_token_update(move |token| {
         println!("Token updated: {:?}", token);
-        save_token(&callback_pool, &login, token).unwrap();
+        save_token(&callback_pool, &login, token)
+            .expect("Failed to save token to db");
     });
 
-    let anki = Anki::new(env::var("ANKI_URL").unwrap());
+    let anki = Anki::new(env::var("ANKI_URL").expect("ANKI_URL must be set"));
     let deck = env::var("ANKI_DECK").unwrap_or("Default".to_string());
 
+    let student = env::var("SKYENG_STUDENT")
+        .expect("SKYENG_STUDENT must be set. E.g.: 123")
+        .parse::<u32>()
+        .expect("SKYENG_STUDENT must be a number");
+
     let words = skyeng
-        .get_words(env::var("SKYENG_STUDENT").unwrap().parse::<u32>().unwrap())
+        .get_words(&student)
         .await
-        .unwrap()
+        .expect("Failed to get words from skyeng")
         .created_after(&last_update);
-    let meanings = skyeng.get_meanings(&words).await.unwrap();
+    let data = words.iter().map(|w| w.word.clone()).collect::<Vec<_>>();
+    let meanings = skyeng
+        .get_meanings(&data)
+        .await
+        .expect("Failed to get meanings from skyeng");
 
     // save meanings into anki
     for note in meanings.iter().map(|m| {
         m.to_notes(&deck)
     }) {
-        anki.add_note(note).await.unwrap();
+        anki.add_note(note)
+            .await
+            .expect("Failed to add note to anki");
     }
-    anki.sync().await.unwrap();
+    anki.sync()
+        .await
+        .expect("Failed to sync anki");
 
     // EVENTUALLY
-    // store meanings in DB
+    // store words in DB
+    to_word_meanings(&student, &words, &meanings).iter().for_each(|w| {
+        save_word(&pool, &w.to_db_word())
+            .expect("Failed to save word to db");
+    });
 
+    //save last added word timestamp if any to DB
     match words.last_created() {
         Some(w) => save_last_update(&pool, &w).unwrap(),
         _ => {}
     };
+}
+
+pub struct WordMeaning{
+    student_id: u32,
+    word: WordOfSet,
+    meaning: Meaning,
+}
+
+impl WordMeaning {
+    pub fn to_db_word(&self) -> Word {
+        Word {
+            student_id: self.student_id.into(),
+            wordset_id: self.word.wordset.id.into(),
+            word_id: self.word.word.meaning_id as i64,
+            title: self.word.wordset.title.clone(),
+            subtitle: self.word.wordset.subtitle.clone(),
+            meaning: self.meaning.text.clone(),
+            created_at: self.word.word.created_at.clone(),
+            exported_at: Some(Utc::now().naive_utc()),
+        }
+    }
+}
+
+pub fn to_word_meanings(student_id: &u32, words: &Vec<WordOfSet>, meanings: &Vec<Meaning>) -> Vec<WordMeaning> {
+    let mut result = Vec::new();
+    for word in words {
+        for meaning in meanings {
+            if &meaning.id == &word.word.meaning_id {
+                result.push(WordMeaning {
+                    student_id: student_id.clone(),
+                    word: word.clone(),
+                    meaning: meaning.clone(),
+                });
+            }
+        }
+    }
+    result
 }
 
 trait ToMaskedText {

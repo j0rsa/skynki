@@ -5,6 +5,7 @@ use crate::Token;
 use crate::schema::{
     token,
     execution,
+    words,
 };
 use super::errors::Result;
 
@@ -60,6 +61,10 @@ impl DbToken {
     }
 }
 
+/// Table is used to keep last run time of the script to filter out the words,
+/// which were already processed.
+///
+/// Could be also calculated from words table by finding max `created_at` column.
 #[derive(Insertable, Queryable, AsChangeset, Clone, Debug)]
 #[table_name = "execution"]
 struct LastUpdate{
@@ -91,6 +96,28 @@ pub fn save_last_update(pool: &Pool, last_update: &String) -> Result<()> {
         .on_conflict(execution::last_update)
         .do_update()
         .set(&update)
+        .execute(&connection)?;
+    Ok(())
+}
+
+#[derive(Insertable, Queryable, Clone, Debug)]
+#[table_name="words"]
+pub struct Word {
+    pub student_id: i64,
+    pub wordset_id: i64,
+    pub word_id: i64,
+    pub title: String,
+    pub subtitle: String,
+    pub meaning: String,
+    pub created_at: String,
+    pub exported_at: Option<chrono::NaiveDateTime>,
+}
+
+pub fn save_word(pool: &Pool, word: &Word) -> Result<()> {
+    let connection = pool.get()?;
+    diesel::insert_into(words::table)
+        .values(word)
+        .on_conflict_do_nothing()
         .execute(&connection)?;
     Ok(())
 }
