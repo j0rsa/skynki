@@ -17,8 +17,11 @@ RUN mkdir src/ && \
     echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs && \
     cargo build --release --target=${TARGET}
 
+# Ubuntu uses dash as default sh by default
+SHELL ["/bin/bash", "-c"]
+
 # as binary name but - -> _. Example: cargo-build -> cargo_build
-RUN export DEP_NAME=${BINARY_NAME//-/_} &&\
+RUN DEP_NAME=${BINARY_NAME//-/_} && \
     rm -f target/${TARGET}/release/deps/${DEP_NAME}*
 
 COPY . .

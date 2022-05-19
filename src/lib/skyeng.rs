@@ -434,7 +434,7 @@ mod test {
     #[test(tokio::test)]
     pub async fn test_get_word_sets() {
         let mut skyeng = skyeng().await;
-        let result = skyeng.get_word_sets(6605911).await;
+        let result = skyeng.get_word_sets(&6605911).await;
         println!("result: {:#?}", result);
         assert!(result.is_ok());
     }
@@ -448,7 +448,7 @@ mod test {
     #[tokio::test]
     pub async fn test_get_words() {
         let mut skyeng = skyeng().await;
-        let result = skyeng.get_words(6605911).await;
+        let result = skyeng.get_words(&6605911).await;
         assert!(result.is_ok());
         println!("result: {}", result.unwrap().len());
     }
@@ -462,7 +462,7 @@ mod test {
     #[tokio::test]
     pub async fn test_get_new_words() {
         let mut skyeng = skyeng().await;
-        let result = skyeng.get_words(6605911).await.map(
+        let result = skyeng.get_words(&6605911).await.map(
             |words| words.created_after(
                 &Some("2022-01-01T00:00:00.000Z".to_string())
             )
@@ -476,7 +476,7 @@ mod test {
     #[tokio::test]
     pub async fn test_get_last_created_words() {
         let mut skyeng = skyeng().await;
-        let result = skyeng.get_words(6605911).await
+        let result = skyeng.get_words(&6605911).await
             .unwrap()
             .last_created();
         assert!(result.is_some());
@@ -517,13 +517,14 @@ mod test {
     #[tokio::test]
     pub async fn test_get_meanings() {
         let mut skyeng = skyeng().await;
-        let words = skyeng.get_words(6605911).await
+        let words = skyeng.get_words(&6605911).await
             .unwrap()
             .iter().rev()
             .take(2)
             .map(|v| v.clone())
-            .collect::<Vec<WordData>>();
-        let result = skyeng.get_meanings(&words).await;
+            .collect::<Vec<WordOfSet>>();
+        let data = words.iter().map(|v| v.word.clone()).collect::<Vec<WordData>>();
+        let result = skyeng.get_meanings(&data).await;
         println!("result: {:#?}", result);
         assert!(result.is_ok());
         assert!(result.unwrap().len() >= 2);
