@@ -3,16 +3,17 @@ ARG BINARY_NAME=app
 # --------------- PREPARE BUILDER ENV ------------------------------------------
 FROM rust:latest as base
 RUN apt update && \
-    apt install -y libssl-dev\
+    apt install -y pkg-config libssl-dev && \
     mkdir -p /app/src
 WORKDIR /app
 
 FROM base as base-amd64
-ARG RUST_TARGET=x86_64-unknown-linux-musl
-RUN rustup target add $RUST_TARGET
+ARG RUST_TARGET=x86_64-unknown-linux-gnu
+# RUN rustup target add $RUST_TARGET
 
+# Inspured by https://github.com/skerkour/black-hat-rust/blob/main/ch_12/rat/docker/Dockerfile.aarch64
 FROM base as base-arm64
-ARG RUST_TARGET=aarch64-unknown-linux-musl
+ARG RUST_TARGET=aarch64-unknown-linux-gnu
 RUN apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross && \
     rustup target add $RUST_TARGET
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
@@ -22,7 +23,8 @@ ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
 FROM base as base-arm32
 ARG RUST_TARGET=armv7-unknown-linux-gnueabihf
 RUN apt install -y g++-arm-linux-gnueabihf libc6-dev-armhf-cross && \
-    rustup target add $RUST_TARGET
+    rustup target add $RUST_TARGET && \
+    rustup toolchain install stable-armv7-unknown-linux-gnueabihf
 ENV CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \
     CC_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc \
     CXX_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++
