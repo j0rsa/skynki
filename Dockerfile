@@ -45,7 +45,7 @@ RUN echo 'fn main() {println!("if you see this, the build broke")}' > src/main.r
 SHELL ["/bin/bash", "-c"]
 
 # as binary name but - -> _. Example: cargo-build -> cargo_build
-RUN DEP_NAME=${BINARY_NAME//-/_} && \
+RUN DEP_NAME=${BINARY_NAME//-/_} \
     rm -f target/${RUST_TARGET}/release/deps/${DEP_NAME}*
 
 COPY . .
