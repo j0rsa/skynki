@@ -75,7 +75,7 @@ FROM runbase-$TARGETARCH
 ARG BINARY_NAME
 LABEL authors="red.avtovo@gmail.com"
 
-COPY --from=cargo-build /app/src/target/${RUST_TARGET}/release/${BINARY_NAME} /opt/
+COPY --from=cargo-build /app/target/${RUST_TARGET}/release/${BINARY_NAME} /opt/
 
 ENV RUST_LOG="info"
 ENV BINARY_NAME=${BINARY_NAME}
