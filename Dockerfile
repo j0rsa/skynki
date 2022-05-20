@@ -59,7 +59,7 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_DIR=/etc/ssl/certs
 
 FROM runbase as runbase-amd64
-ARG RUST_TARGET=x86_64-unknown-linux-musl
+ARG RUST_TARGET=x86_64-unknown-linux-gnu
 
 FROM runbase as runbase-arm64
 ARG RUST_TARGET=aarch64-unknown-linux-gnu
