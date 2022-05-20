@@ -40,7 +40,7 @@ jobs:
           docker buildx build \
           --platform ${DOCKER_TARGET_PLATFORM} \
           --tag ${DOCKER_IMAGE}:latest \
-          --load .
+          .
 
       - name: Docker buildx build and push
         if: github.ref == 'refs/heads/main'

@@ -11,7 +11,7 @@ FROM base as base-amd64
 ARG RUST_TARGET=x86_64-unknown-linux-gnu
 # RUN rustup target add $RUST_TARGET
 
-# Inspured by https://github.com/skerkour/black-hat-rust/blob/main/ch_12/rat/docker/Dockerfile.aarch64
+# Inspired by https://github.com/skerkour/black-hat-rust/blob/main/ch_12/rat/docker/Dockerfile.aarch64
 FROM base as base-arm64
 ARG RUST_TARGET=aarch64-unknown-linux-gnu
 RUN apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross && \
