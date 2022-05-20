@@ -59,7 +59,7 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_DIR=/etc/ssl/certs
 
 FROM runbase as runbase-amd64
-ARG RUST_TARGET=x86_64-unknown-linux-musl
+ARG RUST_TARGET=x86_64-unknown-linux-gnu
 
 FROM runbase as runbase-arm64
 ARG RUST_TARGET=aarch64-unknown-linux-gnu
@@ -75,7 +75,7 @@ FROM runbase-$TARGETARCH
 ARG BINARY_NAME
 LABEL authors="red.avtovo@gmail.com"
 
-COPY --from=cargo-build /app/src/target/${RUST_TARGET}/release/${BINARY_NAME} /opt/
+COPY --from=cargo-build /app/target/${RUST_TARGET}/release/${BINARY_NAME} /opt/
 
 ENV RUST_LOG="info"
 ENV BINARY_NAME=${BINARY_NAME}
