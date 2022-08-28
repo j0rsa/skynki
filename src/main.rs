@@ -20,6 +20,7 @@ use lib::{
 };
 use crate::lib::db_config::DbConfig;
 use crate::lib::repository::{get_last_update, get_token, save_last_update, save_token, save_word, Word};
+use diesel_migrations::RunMigrationsError;
 
 #[tokio::main]
 async fn main() {
@@ -28,7 +29,8 @@ async fn main() {
 
     let pool = DbConfig::get_pool();
     DbConfig::test_connection(pool.clone()).unwrap();
-    match embedded_migrations::run(&pool.clone().get().unwrap()) {
+    let migrations: Result<(),RunMigrationsError> = embedded_migrations::run(&pool.clone().get().unwrap());
+    match migrations {
         Ok(_) => {},
         Err(err) => {
             println!("Unable to run migrations: {}!", err);
