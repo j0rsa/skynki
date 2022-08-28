@@ -19,5 +19,5 @@ CREATE TABLE words(
     created_at TEXT NOT NULL,
     expires_at TIMESTAMP,
 
-    PRIMARY KEY(student_id, wordset_id, word_id),
-)
+    PRIMARY KEY(student_id, wordset_id, word_id)
+);

@@ -3,8 +3,16 @@ mod schema;
 
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
+
+// This macro from `diesel_migrations` defines an `embedded_migrations` module
+// containing a function named `run`. This allows the example to be run and
+// tested without any outside setup of the database.
+embed_migrations!();
 
 use std::env;
+use std::process::exit;
 use chrono::Utc;
 use lib::{
     skyeng::*,
@@ -16,9 +24,18 @@ use crate::lib::repository::{get_last_update, get_token, save_last_update, save_
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    dotenv::dotenv().ok();
 
     let pool = DbConfig::get_pool();
     DbConfig::test_connection(pool.clone()).unwrap();
+    match embedded_migrations::run(&pool.clone().get().unwrap()) {
+        Ok(_) => {},
+        Err(err) => {
+            println!("Unable to run migrations: {}!", err);
+            exit(1);
+        }
+    }
+
 
     let user = env::var("SKYENG_USERNAME")
         .expect("SKYENG_USERNAME must be set");
@@ -42,8 +59,8 @@ async fn main() {
             .expect("Failed to save token to db");
     });
 
-    let anki = Anki::new(env::var("ANKI_URL").expect("ANKI_URL must be set"));
-    let deck = env::var("ANKI_DECK").unwrap_or("Default".to_string());
+    // let anki = Anki::new(env::var("ANKI_URL").expect("ANKI_URL must be set"));
+    // let deck = env::var("ANKI_DECK").unwrap_or("Default".to_string());
 
     let student = env::var("SKYENG_STUDENT")
         .expect("SKYENG_STUDENT must be set. E.g.: 123")
@@ -62,16 +79,16 @@ async fn main() {
         .expect("Failed to get meanings from skyeng");
 
     // save meanings into anki
-    for note in meanings.iter().map(|m| {
-        m.to_notes(&deck)
-    }) {
-        anki.add_note(note)
-            .await
-            .expect("Failed to add note to anki");
-    }
-    anki.sync()
-        .await
-        .expect("Failed to sync anki");
+    // for note in meanings.iter().map(|m| {
+    //     m.to_notes(&deck)
+    // }) {
+    //     anki.add_note(note)
+    //         .await
+    //         .expect("Failed to add note to anki");
+    // }
+    // anki.sync()
+    //     .await
+    //     .expect("Failed to sync anki");
 
     // EVENTUALLY
     // store words in DB
