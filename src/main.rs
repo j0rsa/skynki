@@ -61,8 +61,8 @@ async fn main() {
             .expect("Failed to save token to db");
     });
 
-    // let anki = Anki::new(env::var("ANKI_URL").expect("ANKI_URL must be set"));
-    // let deck = env::var("ANKI_DECK").unwrap_or("Default".to_string());
+    let anki = Anki::new(env::var("ANKI_URL").expect("ANKI_URL must be set"));
+    let deck = env::var("ANKI_DECK").unwrap_or("Default".to_string());
 
     let student = env::var("SKYENG_STUDENT")
         .expect("SKYENG_STUDENT must be set. E.g.: 123")
@@ -81,16 +81,16 @@ async fn main() {
         .expect("Failed to get meanings from skyeng");
 
     // save meanings into anki
-    // for note in meanings.iter().map(|m| {
-    //     m.to_notes(&deck)
-    // }) {
-    //     anki.add_note(note)
-    //         .await
-    //         .expect("Failed to add note to anki");
-    // }
-    // anki.sync()
-    //     .await
-    //     .expect("Failed to sync anki");
+    for note in meanings.iter().map(|m| {
+        m.to_notes(&deck)
+    }) {
+        anki.add_note(note)
+            .await
+            .expect("Failed to add note to anki");
+    }
+    anki.sync()
+        .await
+        .expect("Failed to sync anki");
 
     // EVENTUALLY
     // store words in DB
